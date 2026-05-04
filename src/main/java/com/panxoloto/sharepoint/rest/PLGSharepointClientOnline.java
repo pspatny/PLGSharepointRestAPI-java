@@ -511,9 +511,9 @@ public class PLGSharepointClientOnline implements PLGSharepointClient {
 	    byte[] bytes = new byte[chunkSize];
 	    try (InputStream is = resource.getInputStream();) {
 	    	boolean firstChunk = true;
-	    	int totalLength = is.available();
-	    	int readed = 0;
-			int bufLen;
+	    	long totalLength = is.available();
+	    	long readed = 0;
+		int bufLen;
 	    	while ((bufLen = is.read(bytes)) != -1) {
 	    		readed += bufLen;
 	    		headers.remove(CONTENT_LENGTH);
