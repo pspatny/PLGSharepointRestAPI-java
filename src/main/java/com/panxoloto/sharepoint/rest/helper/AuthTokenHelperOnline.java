@@ -3,6 +3,7 @@ package com.panxoloto.sharepoint.rest.helper;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -69,6 +70,7 @@ public class AuthTokenHelperOnline {
 	private String user; // clientID when useClientId is true
 	private String passwd; // clientSecret when useClientId is true
 	private boolean useClientId;
+	private LocalDateTime formDigestExpiration = LocalDateTime.now().minusMinutes(1);
 
 	private String certificatePath;
 	private String certificatePassword;
@@ -199,7 +201,10 @@ public class AuthTokenHelperOnline {
 		String body = responseEntity.getBody();
 		JSONObject json = new JSONObject(body);
 
-		return json.getJSONObject("d").getJSONObject("GetContextWebInformation").getString("FormDigestValue");
+		JSONObject contextInfo = json.getJSONObject("d").getJSONObject("GetContextWebInformation");
+		int timeoutSeconds = contextInfo.optInt("FormDigestTimeoutSeconds", 1800);
+		formDigestExpiration = LocalDateTime.now().plusSeconds(timeoutSeconds).minusMinutes(1);
+		return contextInfo.getString("FormDigestValue");
 	}
 	
 	/**
@@ -223,6 +228,14 @@ public class AuthTokenHelperOnline {
 			return cloudTokenGetter.getToken();
 		}
 
+		if (LocalDateTime.now().isAfter(formDigestExpiration)) {
+			LOG.debug("Form digest expired, refreshing token");
+			try {
+				init();
+			} catch (Exception e) {
+				LOG.warn("Failed to refresh form digest token, proceeding with existing token", e);
+			}
+		}
 
 		return formDigestValue;
 	}

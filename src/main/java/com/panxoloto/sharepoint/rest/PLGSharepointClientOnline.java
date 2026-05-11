@@ -469,6 +469,12 @@ public class PLGSharepointClientOnline implements PLGSharepointClient {
 	@Override
 	public JSONObject uploadBigFile(String folder, Resource resource, JSONObject jsonMetadata, int chunkSize, String fileName)  throws Exception {
 		LOG.debug("Uploading Big file {} to folder {}", resource.getFilename(), folder);
+		try {
+			this.tokenHelper.init();
+			LOG.debug("Token refreshed before big file upload");
+		} catch (Exception e) {
+			LOG.warn("Token refresh failed before big file upload, proceeding with existing token", e);
+		}
 		JSONObject submeta = new JSONObject();
 		if (jsonMetadata.has("type")) {
 			submeta.put("type", jsonMetadata.get("type"));
@@ -499,15 +505,6 @@ public class PLGSharepointClientOnline implements PLGSharepointClient {
 		String serverRelativeUrl = jsonFileInfo.getJSONObject("d").getString("ServerRelativeUrl");
 		String uuid = UUID.randomUUID().toString();
 
-		headers = headerHelper.getPostHeaders("");
-	    headers.remove(CONTENT_LENGTH);
-	    headers.remove("Content-length");
-	    headers.remove(ACCEPT);
-	    headers.remove(CONTENT_TYPE);
-	    headers.add(CONTENT_TYPE, "application/octet-stream");
-	    headers.add(ACCEPT, "application/json;odata=verbose");
-	    // headers.add("X-RequestDigest", this.tokenHelper.getFormDigestValue());
-
 	    byte[] bytes = new byte[chunkSize];
 	    try (InputStream is = resource.getInputStream();) {
 	    	boolean firstChunk = true;
@@ -516,7 +513,15 @@ public class PLGSharepointClientOnline implements PLGSharepointClient {
 		int bufLen;
 	    	while ((bufLen = is.read(bytes)) != -1) {
 	    		readed += bufLen;
+	    		// Rebuild headers on every chunk to ensure the Bearer token is always fresh
+	    		headers = headerHelper.getPostHeaders("");
 	    		headers.remove(CONTENT_LENGTH);
+	    		headers.remove("Content-length");
+	    		headers.remove(ACCEPT);
+	    		headers.remove(CONTENT_TYPE);
+	    		headers.add(CONTENT_TYPE, "application/octet-stream");
+	    		headers.add(ACCEPT, "application/json;odata=verbose");
+	    		// headers.add("X-RequestDigest", this.tokenHelper.getFormDigestValue());
 	    		if (firstChunk) {
 					headers.add(CONTENT_LENGTH, "" + bufLen);
 	    			RequestEntity<byte[]> requestEntity = new RequestEntity<>(bytes,
